@@ -60,6 +60,5 @@ expressions:
 
 # Ignore these channels.
 excluded:
-  - Alias 2
-  - Alias 3
+  - Alias2
 ```
