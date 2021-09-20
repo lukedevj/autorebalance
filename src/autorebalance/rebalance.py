@@ -74,9 +74,7 @@ class Lnd:
     def filter_list_channel(self, chan_id: int):
         return list(filter(lambda channel: channel['chan_id'] == chan_id, self.get_list_channels()))
 
-
-#
-
+    
 class Rebalance:
 
     def __init__(
@@ -137,7 +135,7 @@ class Rebalance:
         else:
             return False
 
-    def get_list_channels(self): # self.excluded
+    def get_list_channels(self):
         channels = []
         for channel in self.lnd.get_list_channels():
             if not self.ignore_channel_excluded(channel):
