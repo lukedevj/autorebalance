@@ -197,6 +197,7 @@ def rebalance_channels(ctx: object, **kwargs: dict):
         expressions=kwargs.get('expressions'),
         limit_rebalance=kwargs.get('limit_rebalance')
     )
+    print(rebalance.get_list_channels_low_outbound())
     for channel_low_outbound in rebalance.get_list_channels_low_outbound():
         loop_rebalanced_channel = rebalance.loop_rebalance(channel_low_outbound)
         if loop_rebalanced_channel:
