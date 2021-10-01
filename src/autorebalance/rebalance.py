@@ -154,7 +154,7 @@ class Rebalance:
         channels = []
         for channel in self.get_list_channels():
             ratio = self.get_ratio_channel(channel)
-            if ratio['local'] > 5:
+            if ratio['local'] < ratio['remote']:
                 channels.append(channel)
         return sorted(channels, key=lambda x: self.get_remote_available(x), reverse=True)
 
