@@ -154,7 +154,7 @@ class Rebalance:
         channels = []
         for channel in self.get_list_channels():
             ratio = self.get_ratio_channel(channel)
-            if ratio['local'] < ratio['remote']:
+            if ratio['local'] > ratio['remote']:
                 channels.append(channel)
         return sorted(channels, key=lambda x: self.get_remote_available(x), reverse=True)
 
@@ -208,7 +208,6 @@ class Rebalance:
                 break
             if self.total_rebalance_channels >= self.limit_rebalance:
                 break
-
             rebalance = self.rebalance(channel['remote_pubkey'])
             if rebalance['error']:
                 break
@@ -221,10 +220,8 @@ class Rebalance:
 
     @staticmethod
     def parser_rebalance(rebalance: str):
-        print(rebalance)
         if 'err' in rebalance:
-            message = rebalance[rebalance.index('err:') + 4:].replace('-', '').replace('\n', '').split()[1]
-            return {'error': True, 'message': message}
+            return {'error': True}
         else:
             d = {'error': False, 'hops': [], 'rebalance': {}}
             k = ''
@@ -257,20 +254,23 @@ class Rebalance:
 
         channel_in = self.lnd.get_node_alias(channel_in)
         self.excluded.append(channel_in)
-        channel_out = self.lnd.get_node_alias(
-            choice(self.get_list_channels_high_outbound())['remote_pubkey']
-        )
-        self.excluded.remove(channel_in)
+        
+        channel_out = self.get_list_channels_high_outbound()
+        if not channel_out:
+            return {'error': True}
+        else:
+            self.excluded.remove(channel_in)
+            channel_out = self.lnd.get_node_alias(choice(channel_out)['remote_pubkey'])
 
-        command += f' --amount {int(self.amount)} --out {channel_out} --in {channel_in}'
-        if self.fee_limit_fixed:
-            command += f' --max-fee {int(self.fee_limit_fixed)}'
-        elif self.fee_limit_percent:
-            command += f' --max-fee-rate {int(self.fee_limit_percent)}'
-        for channel in self.excluded:
-            command += f' --avoid {channel.replace(" ", "")}'
+            command += f' --amount {int(self.amount)} --out {channel_out} --in {channel_in}'
+            if self.fee_limit_fixed:
+                command += f' --max-fee {int(self.fee_limit_fixed)}'
+            elif self.fee_limit_percent:
+                command += f' --max-fee-rate {int(self.fee_limit_percent)}'
+            for channel in self.excluded:
+                command += f' --avoid {channel.replace(" ", "")}'
 
-        command += ' --no-color --minutes 1'
-        if self.node_save:
-            command += f' --node {self.node_save}'
-        return self.parser_rebalance(popen(f'{command} 2>&1').read().strip())
+            command += ' --no-color --minutes 1'
+            if self.node_save:
+                command += f' --node {self.node_save}'
+            return self.parser_rebalance(popen(f'{command} 2>&1').read().strip())
