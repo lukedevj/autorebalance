@@ -221,6 +221,7 @@ class Rebalance:
 
     @staticmethod
     def parser_rebalance(rebalance: str):
+        print(rebalance)
         if 'err' in rebalance:
             message = rebalance[rebalance.index('err:') + 4:].replace('-', '').replace('\n', '').split()[1]
             return {'error': True, 'message': message}
