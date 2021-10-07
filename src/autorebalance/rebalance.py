@@ -199,25 +199,6 @@ class Rebalance:
                 return False
         return True
 
-    def loop_rebalance(self, channel: dict):
-        rebalanced_channels = []
-        while int(time() - self.timestamp) < self.timeout:
-            if not self.parser_expr(self.lnd.filter_list_channel(channel['chan_id'])[0]):
-                break
-            if self.total_rebalance_fees >= self.max_total_fees:
-                break
-            if self.total_rebalance_channels >= self.limit_rebalance:
-                break
-            rebalance = self.rebalance(channel['remote_pubkey'])
-            if rebalance['error']:
-                break
-            else:
-                self.total_rebalance_fees += int(float(rebalance['rebalance']['rebalance_fees_spent']) * pow(10, 8))
-                self.total_rebalance_amount += self.amount
-                self.total_rebalance_channels += 1
-                rebalanced_channels.append(rebalance)
-        return rebalanced_channels
-
     @staticmethod
     def parser_rebalance(rebalance: str):
         if 'err' in rebalance:
@@ -246,13 +227,13 @@ class Rebalance:
                             d[z[0]] = z[1]
             return d
 
-    def rebalance(self, channel_in: str):
+    def exec_rebalance(self, channel: str):
         if exists('/usr/local/bin/bos'):
             command = '/usr/local/bin/bos rebalance'
         else:
             command = '/usr/bin/bos rebalance'
 
-        channel_in = self.lnd.get_node_alias(channel_in)
+        channel_in = self.lnd.get_node_alias(channel['remote_pubkey'])
         self.excluded.append(channel_in)
         
         channel_out = self.get_list_channels_high_outbound()
@@ -273,4 +254,5 @@ class Rebalance:
             command += ' --no-color --minutes 1'
             if self.node_save:
                 command += f' --node {self.node_save}'
-            return self.parser_rebalance(popen(f'{command} 2>&1').read().strip())
+        rebalance = popen(f'{command} 2>&1').read().strip()
+        return self.parser_rebalance(rebalance)
