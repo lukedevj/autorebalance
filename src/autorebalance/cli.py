@@ -197,39 +197,53 @@ def rebalance_channels(ctx: object, **kwargs: dict):
         expressions=kwargs.get('expressions'),
         limit_rebalance=kwargs.get('limit_rebalance')
     )
+    
+    with Live(table, refresh_per_second=4) as live:
+        for channel_low_outbound in rebalance.get_list_channels_low_outbound():
+            while int(time() - rebalance.timestamp) < rebalance.timeout:
+                if not rebalance.parser_expr(rebalance.lnd.filter_list_channel(channel_low_outbound['chan_id'])[0]):
+                    break 
+                if rebalance.total_rebalance_fees >= rebalance.max_total_fees:
+                    break
+                if rebalance.total_rebalance_channels >= rebalance.limit_rebalance:
+                    break
+                
+                rebalance_channel = rebalance.exec_rebalance(channel_low_outbound)
+                if rebalance_channel['error']:
+                    break
+                else:
+                    rebalanced_fees = int(float(rebalance_channel['rebalance']['rebalance_fees_spent']) * pow(10, 8))
+                    rebalanced_hop_in = rebalance_channel['hops'][-1]['alias']
+                    rebalanced_hop_out = rebalance_channel['hops'][0]['alias']
 
-    for channel_low_outbound in rebalance.get_list_channels_low_outbound():
-        loop_rebalanced_channel = rebalance.loop_rebalance(channel_low_outbound)
-        if loop_rebalanced_channel:
-            for rebalanced_channel in loop_rebalanced_channel:
-                rebalanced_fees = int(
-                    float(rebalanced_channel['rebalance']['rebalance_fees_spent']) * pow(10, 8)
+                    rebalanced_hop_route = rebalance_channel['hops']
+                    rebalanced_hop_route = rebalanced_hop_route[
+                        int(len(rebalanced_hop_route) / 2)
+                    ]['alias']
+
+                    rebalance.total_rebalance_fees += rebalanced_fees
+                    rebalance.total_rebalance_amount += rebalance.amount
+                    rebalance.total_rebalance_channels += 1
+
+                    table.add_row(
+                        f'{int(kwargs["amount"]):,}',
+                        f'{rebalanced_fees:,}',
+                        str(rebalanced_hop_out),
+                        str(rebalanced_hop_route),
+                        str(rebalanced_hop_in)
+                    )
+                    live.update(table)
+        
+        if table.rows:
+            table.add_row(
+                '─' * (len(f'{rebalance.total_rebalance_amount:,}') + 2),
+                '─' * (len(f'{rebalance.total_rebalance_fees:,}') + 2),
                 )
-                rebalanced_hop_in = rebalanced_channel['hops'][-1]['alias']
-                rebalanced_hop_out = rebalanced_channel['hops'][0]['alias']
-
-                rebalanced_hop_route = rebalanced_channel['hops']
-                rebalanced_hop_route = rebalanced_hop_route[
-                    int(len(rebalanced_channel['hops']) / 2)]['alias']
-
-                table.add_row(
-                    f'{int(kwargs["amount"]):,}',
-                    f'{rebalanced_fees:,}',
-                    str(rebalanced_hop_out),
-                    str(rebalanced_hop_route),
-                    str(rebalanced_hop_in)
-                )
-
-    if table.rows:
-        table.add_row(
-            '─' * (len(f'{rebalance.total_rebalance_amount:,}') + 2),
-            '─' * (len(f'{rebalance.total_rebalance_fees:,}') + 2),
+            table.add_row(
+                f'{rebalance.total_rebalance_amount:,}',
+                f'{rebalance.total_rebalance_fees:,}',
             )
-        table.add_row(
-            f'{rebalance.total_rebalance_amount:,}',
-            f'{rebalance.total_rebalance_fees:,}',
-        )
-        console.print(table)
-    else:
-        console.print('[bright_yellow]No channels have been rebalanced.[/bright_yellow]')
-        raise click.Abort()
+            live.update(table)
+        else:
+            console.print('[bright_yellow]No channels have been rebalanced.[/bright_yellow]')
+            raise click.Abort()
